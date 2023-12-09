@@ -20,7 +20,7 @@ To use TransSubs-AI, follow these steps:
      ```
      pip install openai python-dotenv
      ```
-
+   - Rename `example.env` to `.env` and fill in the missing information
 2. **Running the Application**:
    - Use the command line interface (CLI) to easily process your videos. Here's an example command to get you started:
      ```
