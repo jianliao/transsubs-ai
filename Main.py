@@ -7,9 +7,7 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-
 client = OpenAI()
-
 
 def extract_and_transcribe(input_video_path):
     # Load WHISPER_CPP_HOME environment variable
@@ -23,7 +21,7 @@ def extract_and_transcribe(input_video_path):
         whisper_cpp_home, 'models', 'ggml-large-v3.bin')
 
     # Construct and run the command
-    command = f"ffmpeg -nostdin -threads 0 -i {quote(input_video_path)} -f wav -ac 1 -acodec pcm_s16le -ar 16000 - | {quote(whisper_cpp_executable)} -m {quote(whisper_cpp_model)} --output-srt -f -"
+    command = f"ffmpeg -nostdin -threads 0 -i {quote(input_video_path)} -f wav -ac 1 -acodec pcm_s16le -ar 16000 - | {quote(whisper_cpp_executable)} -m {quote(whisper_cpp_model)} --output-srt --logprob-thold 3 -f -"
     process = subprocess.Popen(
         command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     output, error = process.communicate()
@@ -36,7 +34,7 @@ def extract_and_transcribe(input_video_path):
 
 
 def translate_srt(srt_en_content, target_language, temperature=0.7):
-    prompt = f"""First, please correct any grammar or wording issues in the following English subtitles. After correcting, translate the subtitles into {target_language} and only return the translated subtitles, but keep the following elements in their original English form:
+    prompt = f"""First, please correct any grammar or wording issues in the following English subtitles. After correcting, translate the subtitles into {target_language}, but keep the following elements in their original English form:
 - Proper names (people, places, organizations)
 - Brand names and trademarks
 - Specific technical terms
@@ -48,6 +46,7 @@ def translate_srt(srt_en_content, target_language, temperature=0.7):
 - Direct quotes
 - Certain legal terms
 
+Only return the translated subtitles, not the original English subtitles and preserve the srt format.
 Here are the subtitles to be corrected and translated:
 
 {srt_en_content}"""
@@ -70,10 +69,60 @@ Here are the subtitles to be corrected and translated:
     return response.choices[0].message.content.strip()
 
 
-def save_translated_srt(translated_content, output_path):
+def save_file(translated_content, output_path):
     with open(output_path, 'w') as file:
         file.write(translated_content)
 
+
+def format_to_srt(transcript_content):
+    srt_formatted = ""
+    counter = 1
+
+    for line in transcript_content.strip().split('\n'):
+        if line.strip():
+            # Add the sequential number
+            srt_formatted += f"{counter}\n"
+            counter += 1
+
+            # Remove the opening bracket, replace the closing bracket, and format the timecode
+            line = line.lstrip("[").replace("]", "", 1)
+            timecode, text = line.replace('.', ',', 2).split(
+                "   ", 1)  # Splitting timecode and text
+
+            # Add the formatted timecode
+            srt_formatted += timecode + "\n"
+
+            # Add the subtitle text on a new line, starting with a space
+            srt_formatted += f" {text.strip()}\n\n"
+
+    return srt_formatted
+
+def generate_title_and_description(translated_content, language):
+    prompt = (f"Based on the following translated video subtitles in {language}, suggest a concise and engaging title and a brief description for the video. "
+              f"Both the title and description should be in {language}.\n\nSubtitles:\n{translated_content}")
+
+    response = client.chat.completions.create(
+        model="gpt-4-1106-preview",  # or whichever model you're using
+        messages=[
+            {
+                "role": "system",
+                "content": f"You are a helpful assistant designed to be very good at {language}."
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        temperature=0.4,  # Adjust as needed for creativity vs. specificity
+        max_tokens=4096  # Adjust based on how long you expect the title and description to be
+    )
+
+    generated_text = response.choices[0].message.content.strip()
+
+    # Assuming the first line is the title and the rest is the description
+    title, description = generated_text.split('\n', 1)
+
+    return title.strip(), description.strip()
 
 def main():
     # Create the parser
@@ -100,20 +149,27 @@ def main():
     translated_srt_path = os.path.join(video_dir, f"{video_basename}.cn.srt")
 
     # Extract audio and transcribe to SRT
-    srt_content = extract_and_transcribe(input_video_path)
+    raw_srt_content = extract_and_transcribe(input_video_path)
 
-    print(f"English:\n {srt_content}")
+    # Format the raw transcript to SRT format
+    srt_content = format_to_srt(raw_srt_content)
+
+    print(f"English:\n{srt_content}")
 
     # Save the original English subtitles
-    save_translated_srt(srt_content, srt_en_path)
+    save_file(srt_content, srt_en_path)
 
     # # Translate
-    # translated_content = translate_srt(srt_content, "Chinese")
+    translated_content = translate_srt(srt_content, "Chinese")
 
-    # print(f"Chinese:\n {translated_content}")
+    print(f"Chinese:\n{translated_content}")
 
-    # # Save the translated subtitles
-    # save_translated_srt(translated_content, translated_srt_path)
+    # Save the translated subtitles
+    save_file(translated_content, translated_srt_path)
+
+    title, description = generate_title_and_description(translated_content, "Chinese")
+
+    print(f"{title}\n\n{description}")
 
 
 if __name__ == "__main__":
