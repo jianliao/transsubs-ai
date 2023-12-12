@@ -18,7 +18,7 @@ To use TransSubs-AI, follow these steps:
    - Create a Conda virtual environment using Python 3.10 for consistent performance.
    - Install necessary libraries by running:
      ```
-     pip install openai python-dotenv
+     pip install openai python-dotenv ffmpeg-python
      ```
    - Rename `example.env` to `.env` and fill in the missing information
 2. **Running the Application**:

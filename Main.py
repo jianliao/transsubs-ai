@@ -1,13 +1,16 @@
-from openai import OpenAI
-from shlex import quote
 import argparse
+import ffmpeg
 import subprocess
 import os
+
+from openai import OpenAI
+from shlex import quote
 
 from dotenv import load_dotenv
 load_dotenv()
 
 client = OpenAI()
+
 
 def extract_and_transcribe(input_video_path):
     # Load WHISPER_CPP_HOME environment variable
@@ -45,8 +48,13 @@ def translate_srt(srt_en_content, target_language, temperature=0.7):
 - Email addresses and URLs
 - Direct quotes
 - Certain legal terms
+- Location names (cities, state, countries, etc.)
 
-Only return the translated subtitles, not the original English subtitles and preserve the srt format.
+Third, please insert special \\N characters to indicate line breaks if the translated subtitles are too long to fit on one line. For example, if the translated subtitles are:
+"距离旧金山举办Apex峰会已经过去三周多, 世界领导人和一些社区居民开始发出警示, 指出为该峰会而进行的大规模清理工作正在迅速恶化。". You should insert \\N characters to approximately middle of the line to break the line into two lines:
+"距离旧金山举办Apex峰会已经过去三周多, 世界领导人和一些社区居民开始发出警示, \\N指出为该峰会而进行的大规模清理工作正在迅速恶化。"
+
+Only return the translated subtitles, do not include the original English subtitles and preserve the srt format.
 Here are the subtitles to be corrected and translated:
 
 {srt_en_content}"""
@@ -97,6 +105,7 @@ def format_to_srt(transcript_content):
 
     return srt_formatted
 
+
 def generate_title_and_description(translated_content, language):
     prompt = (f"Based on the following translated video subtitles in {language}, suggest a concise and engaging title and a brief description for the video. "
               f"Both the title and description should be in {language}.\n\nSubtitles:\n{translated_content}")
@@ -113,7 +122,7 @@ def generate_title_and_description(translated_content, language):
                 "content": prompt
             }
         ],
-        temperature=0.4,  # Adjust as needed for creativity vs. specificity
+        temperature=0.9,  # Adjust as needed for creativity vs. specificity
         max_tokens=4096  # Adjust based on how long you expect the title and description to be
     )
 
@@ -123,6 +132,28 @@ def generate_title_and_description(translated_content, language):
     title, description = generated_text.split('\n', 1)
 
     return title.strip(), description.strip()
+
+
+def process_video(input_path, subtitles_file, font_name='Adobe Clean Han', font_size=20, width=None, height=None):
+    try:
+        output_path = os.path.splitext(input_path)[0] + '_output.mp4'
+
+        video_stream = ffmpeg.input(input_path)
+
+        # Apply resizing if both width and height are specified
+        if width and height:
+            video_stream = video_stream.filter('scale', width, height)
+
+        (
+            video_stream.output(
+                output_path, vf=f"subtitles={subtitles_file}:force_style='FontName={font_name},FontSize={font_size},Shadow=0,BackColour=&H80000000,BorderStyle=4'", format='mp4').run()
+        )
+
+        return True
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return False
+
 
 def main():
     # Create the parser
@@ -154,22 +185,26 @@ def main():
     # Format the raw transcript to SRT format
     srt_content = format_to_srt(raw_srt_content)
 
-    print(f"English:\n{srt_content}")
+    # print(f"English:\n{srt_content}")
 
     # Save the original English subtitles
     save_file(srt_content, srt_en_path)
 
-    # # Translate
+    # Translate
     translated_content = translate_srt(srt_content, "Chinese")
 
-    print(f"Chinese:\n{translated_content}")
+    # print(f"Chinese:\n{translated_content}")
 
     # Save the translated subtitles
     save_file(translated_content, translated_srt_path)
 
-    title, description = generate_title_and_description(translated_content, "Chinese")
+    title, description = generate_title_and_description(
+        translated_content, "Chinese")
 
-    print(f"{title}\n\n{description}")
+    print(f"{title}\n\n{description}")  
+
+    # Process the video
+    process_video(input_video_path, translated_srt_path)
 
 
 if __name__ == "__main__":
