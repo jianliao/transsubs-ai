@@ -146,7 +146,7 @@ def process_video(input_path, subtitles_file, font_name='Adobe Clean Han', font_
 
         (
             video_stream.output(
-                output_path, vf=f"subtitles={subtitles_file}:force_style='FontName={font_name},FontSize={font_size},Shadow=0,BackColour=&H80000000,BorderStyle=4'", format='mp4').run()
+                output_path, vf=f"subtitles={subtitles_file}:force_style='FontName={font_name},FontSize={font_size},Shadow=0,BackColour=&H80000000,BorderStyle=4'", format='mp4').overwrite_output().run()
         )
 
         return True
