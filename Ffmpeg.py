@@ -1,6 +1,6 @@
-import ffmpeg
-import os
 import subprocess
+import os
+import ffmpeg
 
 
 def get_video_dimensions(input_path):
@@ -13,7 +13,7 @@ def get_video_dimensions(input_path):
     return width, height
 
 
-def process_video(input_path, subtitles_file, font_name='Adobe Clean Han', font_size=20, blur_area=None, width=None, height=None):
+def process_input_video(input_path, subtitles_file, font_name='Adobe Clean Han', font_size=20, blur_area=None, width=None, height=None, output_quality='high'):
     try:
         output_path = os.path.splitext(input_path)[0] + '_output.mp4'
 
@@ -40,8 +40,7 @@ def process_video(input_path, subtitles_file, font_name='Adobe Clean Han', font_
         # Add blur filter if blur_area is specified
         if blur_area is not None:
             x, y, blur_width, blur_height = blur_area
-            # Position the blur area at the bottom right corner
-            x = video_width - x
+            x = video_width - x  # Position the blur area at the bottom right corner
             y = video_height - y
             blur_filter = f'split=2[base][blur];[blur]crop={blur_width}:{blur_height}:{x}:{y},boxblur=luma_radius=min(h\\,w)/20:luma_power=1[blurred];[base][blurred]overlay={x}:{y}'
             complex_filters.append(blur_filter)
@@ -49,6 +48,12 @@ def process_video(input_path, subtitles_file, font_name='Adobe Clean Han', font_
         # Combine complex filters
         if complex_filters:
             cmd.extend(['-filter_complex', ';'.join(complex_filters)])
+
+        # Encoding settings for output quality
+        if output_quality == 'high':
+            cmd.extend(['-crf', '10', '-preset', 'slower'])
+        else:
+            cmd.extend(['-crf', '23', '-preset', 'medium'])
 
         # Output file for intermediate step
         intermediate_output = os.path.splitext(input_path)[0] + '_temp.mp4'
@@ -72,7 +77,7 @@ def process_video(input_path, subtitles_file, font_name='Adobe Clean Han', font_
 
 
 # Test the function
-result = process_video(input_path='/Users/jianliao/Desktop/SocialNetwork/18_KRON4/input.mov',
-                       subtitles_file='/Users/jianliao/Desktop/SocialNetwork/18_KRON4/cn.srt', blur_area=(185, 182, 105, 105))
+# result = process_input_video(input_path='/Users/jianliao/Desktop/SocialNetwork/18_KRON4/input.mov',
+#                        subtitles_file='/Users/jianliao/Desktop/SocialNetwork/18_KRON4/cn.srt', blur_area=(185, 182, 105, 105))
 
-print('Processing result:', result)
+# print('Processing result:', result)
