@@ -13,7 +13,7 @@ load_dotenv('/Users/jianliao/Work/git/transsubs-ai/video_subs/.env')
 client = OpenAI()
 
 
-def extract_and_transcribe_audio(input_video_path):
+def extract_and_transcribe_audio(input_video_path, prompt=None):
     # Load WHISPER_CPP_HOME environment variable
     whisper_cpp_home = os.getenv('WHISPER_CPP_HOME')
     if not whisper_cpp_home:
@@ -24,8 +24,16 @@ def extract_and_transcribe_audio(input_video_path):
     whisper_cpp_model = os.path.join(
         whisper_cpp_home, 'models', 'ggml-large-v3.bin')
 
-    # Construct and run the command
-    command = f"ffmpeg -nostdin -threads 0 -i {quote(input_video_path)} -f wav -ac 1 -acodec pcm_s16le -ar 16000 - | {quote(whisper_cpp_executable)} -m {quote(whisper_cpp_model)} --output-srt --logprob-thold 3 -f -"
+    # Construct the base command
+    command = f"ffmpeg -nostdin -threads 0 -i {quote(input_video_path)} -f wav -ac 1 -acodec pcm_s16le -ar 16000 - | {quote(whisper_cpp_executable)} -m {quote(whisper_cpp_model)} --output-srt --logprob-thold 10 -f -"
+
+    # Add the prompt option to the command if provided
+    if prompt:
+        command += f" --prompt {quote(prompt)}"
+
+    print(command)
+
+    # Run the command
     process = subprocess.Popen(
         command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
     output, error = process.communicate()
@@ -37,7 +45,7 @@ def extract_and_transcribe_audio(input_video_path):
     return output.decode()
 
 
-def translate_subtitle(srt_en_content, target_language, temperature=0.7):
+def translate_subtitle(srt_en_content, target_language, temperature=0.2):
     prompt = f"""First, please correct any grammar or wording issues in the following English subtitles. After correcting, translate the subtitles into {target_language}, but keep the following elements in their original English form:
 - Proper names (people, places, organizations)
 - Brand names and trademarks
@@ -55,8 +63,8 @@ Third, please insert special \\N characters to indicate line breaks if the trans
 "距离旧金山举办Apex峰会已经过去三周多, 世界领导人和一些社区居民开始发出警示, 指出为该峰会而进行的大规模清理工作正在迅速恶化。". You should insert \\N characters to approximately middle of the line to break the line into two lines:
 "距离旧金山举办Apex峰会已经过去三周多, 世界领导人和一些社区居民开始发出警示, \\N指出为该峰会而进行的大规模清理工作正在迅速恶化。"
 
+Edit the subtitle content within an SRT file, ensuring that the original structure of the SRT format is maintained. Specifically, do not make any changes to the time range stamps (the timestamps that dictate when each subtitle appears and disappears on screen). Focus only on correcting, modifying and translating the text of the subtitles, leaving the timing and sequence of each subtitle entry as it is.
 Only return the translated subtitles, do not include the original English subtitles.
-Preserve the srt format and do not modify the srt time range stamp.
 Here are the subtitles to be corrected and translated:
 
 {srt_en_content}"""
@@ -151,6 +159,8 @@ def main():
                         help="The path to the input video file.")
     parser.add_argument('--blur_area_key', type=str, choices=blur_area_presets.keys(),
                         help="Specify the key for a preset blur area. If not provided, no blur area is applied.")
+    parser.add_argument('--prompt', type=str,
+                        help="Optional prompt to use for audio transcription.")
 
     args = parser.parse_args()
 
@@ -164,7 +174,8 @@ def main():
 
         print("Step 2: Extracting and transcribing audio...")
         step_start_time = time.time()
-        raw_srt_content = extract_and_transcribe_audio(args.input_video)
+        raw_srt_content = extract_and_transcribe_audio(
+            args.input_video, prompt=args.prompt)
         print(f"Completed in {time.time() - step_start_time:.2f} seconds.")
 
         print("Step 3: Formatting transcription to SRT...")
