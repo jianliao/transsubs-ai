@@ -45,7 +45,7 @@ def extract_and_transcribe_audio(input_video_path, prompt=None):
     return output.decode()
 
 
-def translate_subtitle(srt_en_content, target_language, temperature=0.2):
+def translate_subtitle(srt_en_content, target_language, temperature=0.2, prompt=None):
     prompt = f"""First, please correct any grammar or wording issues in the following English subtitles. After correcting, translate the subtitles into {target_language}, but keep the following elements in their original English form:
 - Proper names (people, places, organizations)
 - Brand names and trademarks
@@ -59,16 +59,12 @@ def translate_subtitle(srt_en_content, target_language, temperature=0.2):
 - Certain legal terms
 - Location names (cities, state, countries, etc.)
 
-Third, please insert special \\N characters to indicate line breaks if the translated subtitles are too long to fit on one line. For example, if the translated subtitles are:
-"距离旧金山举办Apex峰会已经过去三周多, 世界领导人和一些社区居民开始发出警示, 指出为该峰会而进行的大规模清理工作正在迅速恶化。". You should insert \\N characters to approximately middle of the line to break the line into two lines:
-"距离旧金山举办Apex峰会已经过去三周多, 世界领导人和一些社区居民开始发出警示, \\N指出为该峰会而进行的大规模清理工作正在迅速恶化。"
-
-Edit the subtitle content within an SRT file, ensuring that the original structure of the SRT format is maintained. Specifically, do not make any changes to the time range stamps (the timestamps that dictate when each subtitle appears and disappears on screen). Focus only on correcting, modifying and translating the text of the subtitles, leaving the timing and sequence of each subtitle entry as it is.
+Ensuring that the original structure of the SRT format is maintained. Specifically, do not make any changes to the time range stamps (the timestamps that dictate when each subtitle appears and disappears on screen). Focus only on correcting, modifying and translating the text of the subtitles, leaving the timing and sequence of each subtitle entry as it is.
 Only return the translated subtitles, do not include the original English subtitles.
+{"The orginal English subtitles is in the context of " + prompt if prompt is not None else ""}
 Here are the subtitles to be corrected and translated:
 
 {srt_en_content}"""
-
     response = client.chat.completions.create(
         model="gpt-4-1106-preview",
         temperature=temperature,
@@ -87,8 +83,12 @@ Here are the subtitles to be corrected and translated:
     return response.choices[0].message.content.strip()
 
 
-def save_subtitle_file(translated_content, output_path):
-    with open(output_path, 'w') as file:
+def save_subtitle_file(translated_content, output_path, language=None):
+    if language == 'Chinese':
+        translated_content = translated_content.replace(
+            '，', ' ').replace('。', ' ')
+
+    with open(output_path, 'w', encoding='utf-8') as file:
         file.write(translated_content)
 
 
@@ -186,8 +186,10 @@ def main():
 
         print("Step 4: Translating subtitles...")
         step_start_time = time.time()
-        translated_srt = translate_subtitle(formatted_srt, "Chinese")
-        save_subtitle_file(translated_srt, translated_srt_path)
+        translated_srt = translate_subtitle(
+            formatted_srt, "Chinese", prompt=args.prompt)
+        save_subtitle_file(
+            translated_srt, translated_srt_path, language="Chinese")
         print(f"Completed in {time.time() - step_start_time:.2f} seconds.")
 
         print("Step 5: Processing video...")
