@@ -33,7 +33,8 @@ def download_youtube_video(url, directory):
     command = [
         'yt-dlp', url,
         '-f', 'bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]',
-        '--output', output_template
+        '--output', output_template,
+        '--write-description'
     ]
 
     # Execute download command
@@ -45,8 +46,9 @@ def download_youtube_video(url, directory):
     title = subprocess.check_output(
         ['yt-dlp', '--get-title', url], text=True).strip()
     output_file = os.path.join(directory, f"{title}.mp4")
+    output_description = os.path.join(directory, f"{title}.description")
     if os.path.exists(output_file):
-        return output_file
+        return output_file, output_description
     else:
         raise FileNotFoundError("Downloaded video file not found")
 
@@ -199,17 +201,22 @@ def main():
                         help="The path to the output video files.")
     parser.add_argument('--blur_area_key', type=str, choices=blur_area_presets.keys(),
                         help="Specify the key for a preset blur area. If not provided, no blur area is applied.")
-    parser.add_argument('--prompt', type=str,
-                        help="Optional prompt to use for audio transcription.")
+    # parser.add_argument('--prompt', type=str,
+    #                     help="Optional prompt to use for audio transcription.")
 
     args = parser.parse_args()
 
     try:
         print("Step 0: Downloading video...")
         step_start_time = time.time()
-        input_video = download_youtube_video(args.video_url, args.output_path)
+        input_video, input_video_description = download_youtube_video(
+            args.video_url, args.output_path)
+        # Open the file with UTF-8 encoding
+        with open(input_video_description, 'r', encoding='utf-8') as file:
+            # Read the content of the file
+            prompt = file.read()
+        print(f"Video description:\n{prompt}")
         print(f"Completed in {time.time() - step_start_time:.2f} seconds.")
-        print(f"Input video path: {input_video}")
 
         print("Step 1: Setting up paths and variables...")
         video_dir, video_filename = os.path.split(input_video)
@@ -221,7 +228,7 @@ def main():
         print("Step 2: Extracting and transcribing audio...")
         step_start_time = time.time()
         raw_srt_content = extract_and_transcribe_audio(
-            input_video, prompt=args.prompt)
+            input_video, prompt=prompt)
         print(f"Completed in {time.time() - step_start_time:.2f} seconds.")
 
         print("Step 3: Formatting transcription to SRT...")
@@ -233,7 +240,7 @@ def main():
         print("Step 4: Translating subtitles...")
         step_start_time = time.time()
         translated_srt = translate_subtitle(
-            formatted_srt, "Chinese", prompt=args.prompt)
+            formatted_srt, "Chinese", prompt=prompt)
         save_subtitle_file(
             translated_srt, translated_srt_path, language="Chinese")
         print(f"Completed in {time.time() - step_start_time:.2f} seconds.")
