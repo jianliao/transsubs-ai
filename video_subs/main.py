@@ -15,8 +15,8 @@ client = OpenAI()
 
 
 def normalize_title(title):
-    # Remove single and double quotes
-    title = title.replace("'", "").replace('"', "")
+    # Remove single and double quotes and commas
+    title = title.replace("'", "").replace('"', "").replace(',', '')
 
     # Replace disallowed characters with an underscore
     disallowed_chars = r'[<>:"/\\|?*]+'
