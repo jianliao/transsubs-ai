@@ -14,6 +14,20 @@ load_dotenv('/Users/jianliao/Work/git/transsubs-ai/video_subs/.env')
 client = OpenAI()
 
 
+def normalize_title(title):
+    # Remove single and double quotes
+    title = title.replace("'", "").replace('"', "")
+
+    # Replace disallowed characters with an underscore
+    disallowed_chars = r'[<>:"/\\|?*]+'
+    title = re.sub(disallowed_chars, '_', title)
+
+    # Replace spaces with underscores (optional)
+    title = title.replace(' ', '_')
+
+    return title
+
+
 def download_youtube_video(url, directory):
     # Validate YouTube URL
     youtube_regex = (
@@ -25,9 +39,16 @@ def download_youtube_video(url, directory):
     if not re.match(youtube_regex, url):
         raise ValueError("Invalid YouTube URL")
 
+    # Extract title for output file path
+    title = subprocess.check_output(
+        ['yt-dlp', '--print', 'filename', '-o', '%(title)s.%(ext)s', url], text=True).strip().replace('.webm', '')
+
+    # Normalize title
+    title = normalize_title(title)
+
     # Resolve directory path
     directory = os.path.abspath(directory) if directory == '.' else directory
-    output_template = os.path.join(directory, '%(title)s.%(ext)s')
+    output_template = f"{os.path.join(directory, title)}.mp4"
 
     # Download command
     command = [
@@ -42,12 +63,9 @@ def download_youtube_video(url, directory):
     if result.returncode != 0:
         raise RuntimeError("yt-dlp command failed")
 
-    # Extract title for output file path
-    title = subprocess.check_output(
-        ['yt-dlp', '--get-title', url], text=True).strip()
     output_file = os.path.join(directory, f"{title}.mp4")
     output_description = os.path.join(directory, f"{title}.description")
-    if os.path.exists(output_file):
+    if os.path.exists(output_file) and os.path.exists(output_description):
         return output_file, output_description
     else:
         raise FileNotFoundError("Downloaded video file not found")
