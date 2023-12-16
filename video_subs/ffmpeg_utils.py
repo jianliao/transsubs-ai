@@ -1,13 +1,16 @@
 import subprocess
 import os
 import ffmpeg
+from typing import Tuple
 
 
-def get_video_dimensions(input_path):
-    """Get the dimensions of the video."""
+def get_video_dimensions(input_path: str) -> Tuple[int, int]:
+    # Get the metadata for the input video file.
     probe = ffmpeg.probe(input_path)
+    # Select the first video stream.
     video_streams = [stream for stream in probe['streams']
                      if stream['codec_type'] == 'video']
+    # Extract the width and height of the video.
     width = int(video_streams[0]['width'])
     height = int(video_streams[0]['height'])
     return width, height

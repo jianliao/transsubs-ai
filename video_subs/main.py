@@ -1,6 +1,7 @@
 import time
 import argparse
 import subprocess
+import re
 import os
 
 from openai import OpenAI
@@ -11,6 +12,43 @@ from dotenv import load_dotenv
 load_dotenv('/Users/jianliao/Work/git/transsubs-ai/video_subs/.env')
 
 client = OpenAI()
+
+
+def download_youtube_video(url, directory):
+    # Validate YouTube URL
+    youtube_regex = (
+        r'(https?://)?(www\.)?'
+        r'(youtube\.com/watch\?v=|youtu\.be/)'
+        r'[\w-]+'
+    )
+
+    if not re.match(youtube_regex, url):
+        raise ValueError("Invalid YouTube URL")
+
+    # Resolve directory path
+    directory = os.path.abspath(directory) if directory == '.' else directory
+    output_template = os.path.join(directory, '%(title)s.%(ext)s')
+
+    # Download command
+    command = [
+        'yt-dlp', url,
+        '-f', 'bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]',
+        '--output', output_template
+    ]
+
+    # Execute download command
+    result = subprocess.run(command, check=False)
+    if result.returncode != 0:
+        raise RuntimeError("yt-dlp command failed")
+
+    # Extract title for output file path
+    title = subprocess.check_output(
+        ['yt-dlp', '--get-title', url], text=True).strip()
+    output_file = os.path.join(directory, f"{title}.mp4")
+    if os.path.exists(output_file):
+        return output_file
+    else:
+        raise FileNotFoundError("Downloaded video file not found")
 
 
 def extract_and_transcribe_audio(input_video_path, prompt=None):
@@ -155,8 +193,10 @@ def main():
 
     parser = argparse.ArgumentParser(
         description="Process a video file to generate translated subtitles.")
-    parser.add_argument('input_video', type=str,
+    parser.add_argument('video_url', type=str,
                         help="The path to the input video file.")
+    parser.add_argument('--output_path', type=str, default='.',
+                        help="The path to the output video files.")
     parser.add_argument('--blur_area_key', type=str, choices=blur_area_presets.keys(),
                         help="Specify the key for a preset blur area. If not provided, no blur area is applied.")
     parser.add_argument('--prompt', type=str,
@@ -165,8 +205,14 @@ def main():
     args = parser.parse_args()
 
     try:
+        print("Step 0: Downloading video...")
+        step_start_time = time.time()
+        input_video = download_youtube_video(args.video_url, args.output_path)
+        print(f"Completed in {time.time() - step_start_time:.2f} seconds.")
+        print(f"Input video path: {input_video}")
+
         print("Step 1: Setting up paths and variables...")
-        video_dir, video_filename = os.path.split(args.input_video)
+        video_dir, video_filename = os.path.split(input_video)
         video_basename, _ = os.path.splitext(video_filename)
         srt_en_path = os.path.join(video_dir, f"{video_basename}.en.srt")
         translated_srt_path = os.path.join(
@@ -175,7 +221,7 @@ def main():
         print("Step 2: Extracting and transcribing audio...")
         step_start_time = time.time()
         raw_srt_content = extract_and_transcribe_audio(
-            args.input_video, prompt=args.prompt)
+            input_video, prompt=args.prompt)
         print(f"Completed in {time.time() - step_start_time:.2f} seconds.")
 
         print("Step 3: Formatting transcription to SRT...")
@@ -198,7 +244,7 @@ def main():
         if args.blur_area_key in blur_area_presets:
             blur_area = blur_area_presets[args.blur_area_key]
         process_input_video(
-            args.input_video, translated_srt_path, blur_area=blur_area)
+            input_video, translated_srt_path, blur_area=blur_area)
         print(f"Completed in {time.time() - step_start_time:.2f} seconds.")
 
         print("Step 6: Generating video metadata...")
