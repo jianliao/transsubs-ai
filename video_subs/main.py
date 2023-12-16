@@ -65,11 +65,7 @@ def extract_and_transcribe_audio(input_video_path, prompt=None):
         whisper_cpp_home, 'models', 'ggml-large-v3.bin')
 
     # Construct the base command
-    command = f"ffmpeg -nostdin -threads 0 -i {quote(input_video_path)} -f wav -ac 1 -acodec pcm_s16le -ar 16000 - | {quote(whisper_cpp_executable)} -m {quote(whisper_cpp_model)} --output-srt --logprob-thold 10 -f -"
-
-    # Add the prompt option to the command if provided
-    if prompt:
-        command += f" --prompt {quote(prompt)}"
+    command = f"ffmpeg -nostdin -threads 0 -i {quote(input_video_path)} -f wav -ac 1 -acodec pcm_s16le -ar 16000 - | {quote(whisper_cpp_executable)} -m {quote(whisper_cpp_model)} {'--prompt ' + quote(prompt) if prompt else ''} --output-srt --logprob-thold 3 -f -"
 
     print(command)
 
@@ -85,8 +81,9 @@ def extract_and_transcribe_audio(input_video_path, prompt=None):
     return output.decode()
 
 
-def translate_subtitle(srt_en_content, target_language, temperature=0.2, prompt=None):
-    prompt = f"""First, please correct any grammar or wording issues in the following English subtitles. After correcting, translate the subtitles into {target_language}, but keep the following elements in their original English form:
+def translate_subtitle(srt_en_content, target_language, temperature=0.2, context=None):
+    prompt = f"""
+First, correct any grammatical or wording issues in the English subtitles provided below. Then, translate these subtitles into {target_language}. During translation, keep the following elements in their original English form:
 - Proper names (people, places, organizations)
 - Brand names and trademarks
 - Specific technical terms
@@ -97,14 +94,16 @@ def translate_subtitle(srt_en_content, target_language, temperature=0.2, prompt=
 - Email addresses and URLs
 - Direct quotes
 - Certain legal terms
-- Location names (cities, state, countries, etc.)
+- Location names (cities, states, countries, etc.)
 
 Ensuring that the original structure of the SRT format is maintained. Specifically, do not make any changes to the time range stamps (the timestamps that dictate when each subtitle appears and disappears on screen). Focus only on correcting, modifying and translating the text of the subtitles, leaving the timing and sequence of each subtitle entry as it is.
 Only return the translated subtitles, do not include the original English subtitles.
-{"The orginal English subtitles is in the context of " + prompt if prompt is not None else ""}
-Here are the subtitles to be corrected and translated:
+{"Context of the original subtitles: " + context if context else ""}
 
-{srt_en_content}"""
+Here are the subtitles for correction and translation:
+
+{srt_en_content}
+"""
     response = client.chat.completions.create(
         model="gpt-4-1106-preview",
         temperature=temperature,
@@ -215,7 +214,6 @@ def main():
         with open(input_video_description, 'r', encoding='utf-8') as file:
             # Read the content of the file
             prompt = file.read()
-        print(f"Video description:\n{prompt}")
         print(f"Completed in {time.time() - step_start_time:.2f} seconds.")
 
         print("Step 1: Setting up paths and variables...")
@@ -240,7 +238,7 @@ def main():
         print("Step 4: Translating subtitles...")
         step_start_time = time.time()
         translated_srt = translate_subtitle(
-            formatted_srt, "Chinese", prompt=prompt)
+            formatted_srt, "Chinese", context=prompt)
         save_subtitle_file(
             translated_srt, translated_srt_path, language="Chinese")
         print(f"Completed in {time.time() - step_start_time:.2f} seconds.")
