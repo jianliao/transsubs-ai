@@ -230,6 +230,7 @@ def main():
     trim_end_presets = {
         'ABC7': 17,
         'INSIDE': 8,
+        'NBC': 10,
         # Add more presets here as needed
     }
 
