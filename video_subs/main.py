@@ -79,7 +79,7 @@ def download_youtube_video(url, directory, trim_end):
             if result.returncode != 0:
                 raise RuntimeError("ffmpeg command failed")
             # Remove the intermediate file
-            os.remove(f"{title}-trimmed.mp4")
+            os.remove(output_file)
             return f"{title}-trimmed.mp4", output_description
         else:
             return output_file, output_description
