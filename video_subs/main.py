@@ -3,6 +3,7 @@ import argparse
 import subprocess
 import re
 import os
+import ffmpeg
 
 from openai import OpenAI
 from shlex import quote
@@ -28,7 +29,24 @@ def normalize_title(title):
     return title
 
 
-def download_youtube_video(url, directory):
+def get_video_length(video_path):
+    """Get the length of a video in seconds using ffmpeg-python."""
+    try:
+        # Use ffprobe to get video info
+        probe = ffmpeg.probe(video_path)
+
+        # Extract duration from the first video stream
+        duration = next(
+            (stream for stream in probe['streams'] if stream['codec_type'] == 'video'), None)['duration']
+
+        return float(duration)
+    except ffmpeg.Error as e:
+        raise RuntimeError(f"An error occurred while probing the video: {e}")
+    except StopIteration:
+        raise ValueError("No video stream found in the file")
+
+
+def download_youtube_video(url, directory, trim_end):
     # Validate YouTube URL
     youtube_regex = (
         r'(https?://)?(www\.)?'
@@ -48,13 +66,14 @@ def download_youtube_video(url, directory):
 
     # Resolve directory path
     directory = os.path.abspath(directory) if directory == '.' else directory
-    output_template = f"{os.path.join(directory, title)}.mp4"
+    output_file = os.path.join(directory, f"{title}.mp4")
+    output_description = os.path.join(directory, f"{title}.description")
 
     # Download command
     command = [
         'yt-dlp', url,
         '-f', 'bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]',
-        '--output', output_template,
+        '--output', output_file,
         '--write-description'
     ]
 
@@ -63,10 +82,25 @@ def download_youtube_video(url, directory):
     if result.returncode != 0:
         raise RuntimeError("yt-dlp command failed")
 
-    output_file = os.path.join(directory, f"{title}.mp4")
-    output_description = os.path.join(directory, f"{title}.description")
     if os.path.exists(output_file) and os.path.exists(output_description):
-        return output_file, output_description
+        # Trim the end of the video if needed
+        if trim_end:
+            video_length = get_video_length(output_file)
+            command = [
+                'ffmpeg', '-nostdin',
+                '-i', output_file,
+                '-t', f"{video_length - trim_end}",
+                '-c', 'copy',
+                f"{title}-trimmed.mp4"
+            ]
+            result = subprocess.run(command, check=False)
+            if result.returncode != 0:
+                raise RuntimeError("ffmpeg command failed")
+            # Remove the intermediate file
+            os.remove(f"{title}-trimmed.mp4")
+            return f"{title}-trimmed.mp4", output_description
+        else:
+            return output_file, output_description
     else:
         raise FileNotFoundError("Downloaded video file not found")
 
@@ -210,6 +244,12 @@ def main():
         # Add more presets here as needed
     }
 
+    # Preset trim ends mapped to keys
+    trim_end_presets = {
+        'ABC7': 17,
+        # Add more presets here as needed
+    }
+
     parser = argparse.ArgumentParser(
         description="Process a video file to generate translated subtitles.")
     parser.add_argument('video_url', type=str,
@@ -218,6 +258,8 @@ def main():
                         help="The path to the output video files.")
     parser.add_argument('--blur_area_key', type=str, choices=blur_area_presets.keys(),
                         help="Specify the key for a preset blur area. If not provided, no blur area is applied.")
+    parser.add_argument('--trim_end', type=str, choices=trim_end_presets.keys(),
+                        help='Specify the key for a preset trim end. If not provided, no trim end is applied.')
     # parser.add_argument('--prompt', type=str,
     #                     help="Optional prompt to use for audio transcription.")
 
@@ -227,7 +269,7 @@ def main():
         print("Step 0: Downloading video...")
         step_start_time = time.time()
         input_video, input_video_description = download_youtube_video(
-            args.video_url, args.output_path)
+            args.video_url, args.output_path, trim_end_presets[args.trim_end] if args.trim_end else None)
         # Open the file with UTF-8 encoding
         with open(input_video_description, 'r', encoding='utf-8') as file:
             # Read the content of the file
