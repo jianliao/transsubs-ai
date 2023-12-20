@@ -16,6 +16,23 @@ def get_video_dimensions(input_path: str) -> Tuple[int, int]:
     return width, height
 
 
+def get_video_length(video_path):
+    """Get the length of a video in seconds using ffmpeg-python."""
+    try:
+        # Use ffprobe to get video info
+        probe = ffmpeg.probe(video_path)
+
+        # Extract duration from the first video stream
+        duration = next(
+            (stream for stream in probe['streams'] if stream['codec_type'] == 'video'), None)['duration']
+
+        return float(duration)
+    except ffmpeg.Error as e:
+        raise RuntimeError(f"An error occurred while probing the video: {e}")
+    except StopIteration:
+        raise ValueError("No video stream found in the file")
+
+
 def process_input_video(input_path, subtitles_file, font_name='Adobe Clean Han', font_size=20, blur_area=None, width=None, height=None, output_quality='high'):
     try:
         output_path = os.path.splitext(input_path)[0] + '_output.mp4'

@@ -3,11 +3,10 @@ import argparse
 import subprocess
 import re
 import os
-import ffmpeg
 
 from openai import OpenAI
 from shlex import quote
-from .ffmpeg_utils import process_input_video
+from .ffmpeg_utils import get_video_length, process_input_video
 
 from dotenv import load_dotenv
 load_dotenv('/Users/jianliao/Work/git/transsubs-ai/video_subs/.env')
@@ -27,23 +26,6 @@ def normalize_title(title):
     title = title.replace(' ', '_')
 
     return title
-
-
-def get_video_length(video_path):
-    """Get the length of a video in seconds using ffmpeg-python."""
-    try:
-        # Use ffprobe to get video info
-        probe = ffmpeg.probe(video_path)
-
-        # Extract duration from the first video stream
-        duration = next(
-            (stream for stream in probe['streams'] if stream['codec_type'] == 'video'), None)['duration']
-
-        return float(duration)
-    except ffmpeg.Error as e:
-        raise RuntimeError(f"An error occurred while probing the video: {e}")
-    except StopIteration:
-        raise ValueError("No video stream found in the file")
 
 
 def download_youtube_video(url, directory, trim_end):
