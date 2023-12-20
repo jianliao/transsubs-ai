@@ -229,6 +229,7 @@ def main():
     # Preset trim ends mapped to keys
     trim_end_presets = {
         'ABC7': 17,
+        'INSIDE': 8,
         # Add more presets here as needed
     }
 
