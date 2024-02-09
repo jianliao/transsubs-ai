@@ -9,7 +9,7 @@ from shlex import quote
 from .ffmpeg_utils import get_video_length, process_input_video
 
 from dotenv import load_dotenv
-load_dotenv('/Users/jianliao/Work/git/transsubs-ai/video_subs/.env')
+load_dotenv('/home/jianliao/Work/transsubs-ai/video_subs/.env')
 
 client = OpenAI()
 
