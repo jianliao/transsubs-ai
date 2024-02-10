@@ -117,24 +117,29 @@ def extract_and_transcribe_audio(input_video_path, prompt=None):
 
 def translate_subtitle(srt_en_content, target_language, temperature=0.2, context=None):
     prompt = f"""
-First, correct any grammatical or wording issues in the English subtitles provided below. Then, translate these subtitles into {target_language}. During translation, keep the following elements in their original English form:
-- Proper names (people, places, organizations)
-- Brand names and trademarks
-- Specific technical terms
-- Acronyms and abbreviations
-- Cultural references, idioms, and sayings
-- Titles of works (books, movies, songs)
-- Units of measurement
-- Email addresses and URLs
-- Direct quotes
-- Certain legal terms
-- Location names (cities, states, countries, etc.)
+### Context
 
-Ensuring that the original structure of the SRT format is maintained. Specifically, do not make any changes to the time range stamps (the timestamps that dictate when each subtitle appears and disappears on screen). Focus only on correcting, modifying and translating the text of the subtitles, leaving the timing and sequence of each subtitle entry as it is.
-Only return the translated subtitles, do not include the original English subtitles.
-{"Context of the original subtitles: " + context if context else ""}
+{context if context else ""}
 
-Here are the subtitles for correction and translation:
+### Instruction
+
+1. Correct any grammatical or wording issues in the English subtitles provided in Input section. 
+2. Translate these subtitles into {target_language}. 
+3. Keep the following elements in their original English form:
+    - Proper names (people, places, organizations)
+    - Brand names and trademarks
+    - Specific technical terms
+    - Acronyms and abbreviations
+    - Cultural references, idioms, and sayings
+    - Titles of works (books, movies, songs)
+    - Units of measurement
+    - Email addresses and URLs
+    - Direct quotes
+    - Certain legal terms
+    - Location names (cities, states, countries, etc.)
+4. Ensuring that the original structure of the SRT format is maintained. Specifically, do not make any changes to the time range stamps (the timestamps that dictate when each subtitle appears and disappears on screen). Focus only on correcting, modifying and translating the text of the subtitles, leaving the timing and sequence of each subtitle entry as it is.
+
+### Input
 
 {srt_en_content}
 """
@@ -244,13 +249,13 @@ def main():
                         help="Specify the key for a preset blur area. If not provided, no blur area is applied.")
     parser.add_argument('--trim_end', type=str, choices=trim_end_presets.keys(),
                         help='Specify the key for a preset trim end. If not provided, no trim end is applied.')
-    # parser.add_argument('--prompt', type=str,
-    #                     help="Optional prompt to use for audio transcription.")
+    parser.add_argument('--cn_only', type=bool, default=False,
+                        help="Chinese subtitle only.")
 
     args = parser.parse_args()
 
     try:
-        print("Step 0: Downloading video...")
+        print("Step 0: Downloading video...\n")
         step_start_time = time.time()
         input_video, input_video_description = download_youtube_video(
             args.video_url, args.output_path, trim_end_presets[args.trim_end] if args.trim_end else None)
@@ -260,26 +265,26 @@ def main():
             prompt = file.read()
         print(f"Completed in {time.time() - step_start_time:.2f} seconds.")
 
-        print("Step 1: Setting up paths and variables...")
+        print("Step 1: Setting up paths and variables...\n")
         video_dir, video_filename = os.path.split(input_video)
         video_basename, _ = os.path.splitext(video_filename)
         srt_en_path = os.path.join(video_dir, f"{video_basename}.en.srt")
         translated_srt_path = os.path.join(
             video_dir, f"{video_basename}.cn.srt")
 
-        print("Step 2: Extracting and transcribing audio...")
+        print("Step 2: Extracting and transcribing audio...\n")
         step_start_time = time.time()
         raw_srt_content = extract_and_transcribe_audio(
             input_video, prompt=prompt)
         print(f"Completed in {time.time() - step_start_time:.2f} seconds.")
 
-        print("Step 3: Formatting transcription to SRT...")
+        print("Step 3: Formatting transcription to SRT...\n")
         step_start_time = time.time()
         formatted_srt = format_transcription_to_srt(raw_srt_content)
         save_subtitle_file(formatted_srt, srt_en_path)
         print(f"Completed in {time.time() - step_start_time:.2f} seconds.")
 
-        print("Step 4: Translating subtitles...")
+        print("Step 4: Translating subtitles...\n")
         step_start_time = time.time()
         translated_srt = translate_subtitle(
             formatted_srt, "Chinese", context=prompt)
@@ -287,7 +292,14 @@ def main():
             translated_srt, translated_srt_path, language="Chinese")
         print(f"Completed in {time.time() - step_start_time:.2f} seconds.")
 
-        print("Step 5: Processing video...")
+        if args.cn_only == False:
+            print("Step 4a: Combine two subtitles into one. \n")
+            combined_sub = formatted_srt + '\n' + translated_srt
+            combined_sub_path = os.path.join(video_dir, f"{video_basename}.srt")
+            save_subtitle_file(combined_sub, combined_sub_path)
+            translated_srt_path = combined_sub_path
+
+        print("Step 5: Processing video...\n")
         step_start_time = time.time()
         blur_area = None
         if args.blur_area_key in blur_area_presets:
@@ -296,7 +308,7 @@ def main():
             input_video, translated_srt_path, blur_area=blur_area)
         print(f"Completed in {time.time() - step_start_time:.2f} seconds.")
 
-        print("Step 6: Generating video metadata...")
+        print("Step 6: Generating video metadata...\n")
         step_start_time = time.time()
         title, description = generate_video_metadata(translated_srt, "Chinese")
         print(title + "\n\n" + description)
