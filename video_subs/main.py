@@ -207,26 +207,33 @@ def format_transcription_to_srt(transcript_content):
 
 
 def generate_video_metadata(translated_content, language):
-    prompt = (f"Based on the following translated video subtitles in {language}, suggest a concise and engaging title and a brief description for the video. "
-              f"Both the title and description should be in {language}.\n\nSubtitles:\n{translated_content}")
+    prompt = (f"Based on the following subtitles, suggest a concise and engaging title and a brief description for the video. "
+              f"Subtitles:\n{translated_content}")
 
-    response = client.chat.completions.create(
-        model="gpt-4-1106-preview",  # or whichever model you're using
-        messages=[
-            {
-                "role": "system",
-                "content": f"You are a helpful assistant designed to be very good at {language}."
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        temperature=0.9,  # Adjust as needed for creativity vs. specificity
-        max_tokens=4096  # Adjust based on how long you expect the title and description to be
-    )
+    # response = client.chat.completions.create(
+    #     model="gpt-4-1106-preview",  # or whichever model you're using
+    #     messages=[
+    #         {
+    #             "role": "system",
+    #             "content": f"You are a helpful assistant designed to be very good at {language}."
+    #         },
+    #         {
+    #             "role": "user",
+    #             "content": prompt
+    #         }
+    #     ],
+    #     temperature=0.9,  # Adjust as needed for creativity vs. specificity
+    #     max_tokens=4096  # Adjust based on how long you expect the title and description to be
+    # )
 
-    generated_text = response.choices[0].message.content.strip()
+    response = ollama.chat(model='qwen:14b', messages=[
+        {
+            'role': 'user',
+            'content': prompt
+        }
+    ])
+
+    generated_text = response['message']['content']
 
     # Assuming the first line is the title and the rest is the description
     title, description = generated_text.split('\n', 1)
@@ -320,11 +327,11 @@ def main():
             input_video, translated_srt_path, blur_area=blur_area)
         print(f"Completed in {time.time() - step_start_time:.2f} seconds.")
 
-        # print("Step 6: Generating video metadata...\n")
-        # step_start_time = time.time()
-        # title, description = generate_video_metadata(translated_srt, "Chinese")
-        # print(title + "\n\n" + description)
-        # print(f"Completed in {time.time() - step_start_time:.2f} seconds.")
+        print("Step 6: Generating video metadata...\n")
+        step_start_time = time.time()
+        title, description = generate_video_metadata(translated_srt, "Chinese")
+        print(title + "\n\n" + description)
+        print(f"Completed in {time.time() - step_start_time:.2f} seconds.")
 
         print(
             f"Total execution time: {(time.time() - start_time) / 60:.2f} minutes.")
