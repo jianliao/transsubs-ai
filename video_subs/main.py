@@ -3,6 +3,7 @@ import argparse
 import subprocess
 import re
 import os
+import ollama
 
 from openai import OpenAI
 from shlex import quote
@@ -99,9 +100,7 @@ def extract_and_transcribe_audio(input_video_path, prompt=None):
         whisper_cpp_home, 'models', 'ggml-large-v3.bin')
 
     # Construct the base command
-    command = f"ffmpeg -nostdin -threads 0 -i {quote(input_video_path)} -f wav -ac 1 -acodec pcm_s16le -ar 16000 - | {quote(whisper_cpp_executable)} -m {quote(whisper_cpp_model)} {'--prompt ' + quote(prompt) if prompt else ''} --output-srt --logprob-thold 3 -f -"
-
-    print(command)
+    command = f"ffmpeg -nostdin -threads 0 -i {quote(input_video_path)} -f wav -ac 1 -acodec pcm_s16le -ar 16000 - | {quote(whisper_cpp_executable)} -m {quote(whisper_cpp_model)} {('--prompt ' + quote(prompt)) if prompt else ''} --output-srt --logprob-thold 3 -f -"
 
     # Run the command
     process = subprocess.Popen(
@@ -117,15 +116,9 @@ def extract_and_transcribe_audio(input_video_path, prompt=None):
 
 def translate_subtitle(srt_en_content, target_language, temperature=0.2, context=None):
     prompt = f"""
-### Context
+Translate the English subtitles provided input below into {target_language} while following the given guidelines:
 
-{context if context else ""}
-
-### Instruction
-
-1. Correct any grammatical or wording issues in the English subtitles provided in Input section. 
-2. Translate these subtitles into {target_language}. 
-3. Keep the following elements in their original English form:
+1. Ensure the following elements remain in their original English form:
     - Proper names (people, places, organizations)
     - Brand names and trademarks
     - Specific technical terms
@@ -137,28 +130,47 @@ def translate_subtitle(srt_en_content, target_language, temperature=0.2, context
     - Direct quotes
     - Certain legal terms
     - Location names (cities, states, countries, etc.)
-4. Ensuring that the original structure of the SRT format is maintained. Specifically, do not make any changes to the time range stamps (the timestamps that dictate when each subtitle appears and disappears on screen). Focus only on correcting, modifying and translating the text of the subtitles, leaving the timing and sequence of each subtitle entry as it is.
 
-### Input
+2. Pay attention to maintaining the original structure of the SRT format, including timestamps. Focus solely on correcting, modifying, and translating the subtitles. The timing and sequence of each subtitle entry should remain unchanged.
+
+3. Translate all the English subtitles to {target_language} 
+
+4. Your response only contains {target_language} translations of the subtitles.
+
+Here is the English subtitles:
 
 {srt_en_content}
 """
-    response = client.chat.completions.create(
-        model="gpt-4-1106-preview",
-        temperature=temperature,
-        max_tokens=4096,
-        messages=[
-            {
-                "role": "system",
-                "content": f"You are a helpful assistant designed to translate English subtitles to {target_language} subtitles."
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ]
-    )
-    return response.choices[0].message.content.strip()
+    # response = client.chat.completions.create(
+    #     model="gpt-4-1106-preview",
+    #     temperature=temperature,
+    #     max_tokens=4096,
+    #     messages=[
+    #         {
+    #             "role": "system",
+    #             "content": f"You are a helpful assistant designed to translate English subtitles to {target_language} subtitles."
+    #         },
+    #         {
+    #             "role": "user",
+    #             "content": prompt
+    #         }
+    #     ]
+    # )
+    # return response.choices[0].message.content.strip()
+
+    response = ollama.chat(model='qwen:14b', messages=[
+        {
+            "role": "system",
+            "content": f"You are a helpful assistant designed to translate English subtitles to {target_language} subtitles."
+        },
+        {
+            'role': 'user',
+            'content': prompt
+        }
+    ])
+
+    print(response['message']['content'])
+    return response['message']['content']
 
 
 def save_subtitle_file(translated_content, output_path, language=None):
@@ -294,7 +306,7 @@ def main():
 
         if args.cn_only == False:
             print("Step 4a: Combine two subtitles into one. \n")
-            combined_sub = formatted_srt + '\n' + translated_srt
+            combined_sub = translated_srt + '\n' + formatted_srt
             combined_sub_path = os.path.join(video_dir, f"{video_basename}.srt")
             save_subtitle_file(combined_sub, combined_sub_path)
             translated_srt_path = combined_sub_path
@@ -308,11 +320,11 @@ def main():
             input_video, translated_srt_path, blur_area=blur_area)
         print(f"Completed in {time.time() - step_start_time:.2f} seconds.")
 
-        print("Step 6: Generating video metadata...\n")
-        step_start_time = time.time()
-        title, description = generate_video_metadata(translated_srt, "Chinese")
-        print(title + "\n\n" + description)
-        print(f"Completed in {time.time() - step_start_time:.2f} seconds.")
+        # print("Step 6: Generating video metadata...\n")
+        # step_start_time = time.time()
+        # title, description = generate_video_metadata(translated_srt, "Chinese")
+        # print(title + "\n\n" + description)
+        # print(f"Completed in {time.time() - step_start_time:.2f} seconds.")
 
         print(
             f"Total execution time: {(time.time() - start_time) / 60:.2f} minutes.")

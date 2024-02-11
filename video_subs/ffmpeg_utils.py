@@ -2,6 +2,7 @@ import subprocess
 import os
 import ffmpeg
 from typing import Tuple
+from shlex import quote
 
 
 def get_video_dimensions(input_path: str) -> Tuple[int, int]:
@@ -33,7 +34,7 @@ def get_video_length(video_path):
         raise ValueError("No video stream found in the file")
 
 
-def process_input_video(input_path, subtitles_file, font_name='Adobe Clean Han', font_size=20, blur_area=None, width=None, height=None, output_quality='high'):
+def process_input_video(input_path, subtitles_file, font_name='Adobe Clean Han', font_size=12, blur_area=None, width=None, height=None, output_quality='high'):
     try:
         output_path = os.path.splitext(input_path)[0] + '_output.mp4'
 
@@ -75,7 +76,7 @@ def process_input_video(input_path, subtitles_file, font_name='Adobe Clean Han',
 
             # Apply subtitles in a second step
             subtitles_cmd = ['ffmpeg', '-i', intermediate_output, '-vf',
-                             f"subtitles={subtitles_file}:force_style='FontName={font_name},FontSize={font_size},Shadow=0,BackColour=&H80000000,BorderStyle=4'", output_path]
+                             f"subtitles={quote(subtitles_file)}:force_style='FontName={quote(font_name)},FontSize={font_size},Shadow=0,BackColour=&H80000000,BorderStyle=4'", output_path]
             subprocess.run(subtitles_cmd, check=True)
 
             # Remove the intermediate file
