@@ -1,5 +1,6 @@
 import time
 import argparse
+import logging
 import subprocess
 import re
 import os
@@ -13,6 +14,11 @@ from dotenv import load_dotenv
 load_dotenv('/home/jianliao/Work/transsubs-ai/video_subs/.env')
 
 client = OpenAI()
+
+current_directory = os.getcwd()
+log_file_path = os.path.join(current_directory, 'app.log')
+# Configure logging to save in the current directory
+logging.basicConfig(filename=log_file_path, filemode='w', level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 
 def normalize_title(title):
@@ -157,8 +163,8 @@ Here is the English subtitles:
     #     ]
     # )
     # return response.choices[0].message.content.strip()
-
-    response = ollama.chat(model='qwen:14b', messages=[
+    logging.info(prompt)
+    response = ollama.chat(model=os.getenv('LOCAL_LLM'), messages=[
         {
             "role": "system",
             "content": f"You are a helpful assistant designed to translate English subtitles to {target_language} subtitles."
@@ -168,8 +174,6 @@ Here is the English subtitles:
             'content': prompt
         }
     ])
-
-    print(response['message']['content'])
     return response['message']['content']
 
 
@@ -226,7 +230,7 @@ def generate_video_metadata(translated_content, language):
     #     max_tokens=4096  # Adjust based on how long you expect the title and description to be
     # )
 
-    response = ollama.chat(model='qwen:14b', messages=[
+    response = ollama.chat(model=os.getenv('LOCAL_LLM'), messages=[
         {
             'role': 'user',
             'content': prompt
@@ -313,7 +317,7 @@ def main():
 
         if args.cn_only == False:
             print("Step 4a: Combine two subtitles into one. \n")
-            combined_sub = translated_srt + '\n' + formatted_srt
+            combined_sub = translated_srt + '\n\n' + formatted_srt
             combined_sub_path = os.path.join(video_dir, f"{video_basename}.srt")
             save_subtitle_file(combined_sub, combined_sub_path)
             translated_srt_path = combined_sub_path
