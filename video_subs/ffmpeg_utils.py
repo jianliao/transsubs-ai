@@ -34,7 +34,7 @@ def get_video_length(video_path):
         raise ValueError("No video stream found in the file")
 
 
-def process_input_video(input_path, subtitles_file, font_name='Adobe Clean Han', font_size=12, blur_area=None, width=None, height=None, output_quality='high'):
+def process_input_video(input_path, subtitles_file, font_name='Adobe Clean Han', font_size=20, blur_area=None, width=None, height=None, output_quality='high'):
     try:
         output_path = os.path.splitext(input_path)[0] + '_output.mp4'
 

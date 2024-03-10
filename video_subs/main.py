@@ -4,26 +4,33 @@ import logging
 import subprocess
 import re
 import os
-import ollama
 
+import ollama
 from openai import OpenAI
+from anthropic import Anthropic
+
 from shlex import quote
 from .ffmpeg_utils import get_video_length, process_input_video
 
 from dotenv import load_dotenv
-load_dotenv('/home/jianliao/Work/transsubs-ai/video_subs/.env')
+load_dotenv('/Users/jianliao/Work/git/transsubs-ai/video_subs/.env')
 
 client = OpenAI()
+
+client_claude = client = Anthropic()
+
 
 current_directory = os.getcwd()
 log_file_path = os.path.join(current_directory, 'app.log')
 # Configure logging to save in the current directory
-logging.basicConfig(filename=log_file_path, filemode='w', level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(filename=log_file_path, filemode='w', level=logging.INFO,
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 
 
 def normalize_title(title):
     # Remove single and double quotes and commas
-    title = title.replace("'", "").replace('"', "").replace(',', '').replace(';', '')
+    title = title.replace("'", "").replace(
+        '"', "").replace(',', '').replace(';', '')
 
     # Replace disallowed characters with an underscore
     disallowed_chars = r'[<>:"/\\|?*]+'
@@ -106,7 +113,10 @@ def extract_and_transcribe_audio(input_video_path, prompt=None):
         whisper_cpp_home, 'models', 'ggml-large-v3.bin')
 
     # Construct the base command
-    command = f"ffmpeg -nostdin -threads 0 -i {quote(input_video_path)} -f wav -ac 1 -acodec pcm_s16le -ar 16000 - | {quote(whisper_cpp_executable)} -m {quote(whisper_cpp_model)} {('--prompt ' + quote(prompt)) if prompt else ''} --output-srt --logprob-thold 3 -f -"
+    command = f"ffmpeg -nostdin -threads 0 -i {quote(input_video_path)} -f wav -ac 1 -acodec pcm_s16le -ar 16000 - | {quote(whisper_cpp_executable)} -m {
+        quote(whisper_cpp_model)} {('--prompt ' + quote(prompt)) if prompt else ''} --output-srt --logprob-thold 3 -f -"
+
+    print(command)
 
     # Run the command
     process = subprocess.Popen(
@@ -120,7 +130,7 @@ def extract_and_transcribe_audio(input_video_path, prompt=None):
     return output.decode()
 
 
-def translate_subtitle(srt_en_content, target_language, temperature=0.2, context=None):
+def translate_subtitle(srt_en_content, target_language, temperature=0.2, context=None, llm='ollama'):
     prompt = f"""
 Translate the English subtitles provided input below into {target_language} while following the given guidelines:
 
@@ -139,7 +149,7 @@ Translate the English subtitles provided input below into {target_language} whil
 
 2. Pay attention to maintaining the original structure of the SRT format, including timestamps. Focus solely on correcting, modifying, and translating the subtitles. The timing and sequence of each subtitle entry should remain unchanged.
 
-3. Translate all the English subtitles to {target_language} 
+3. Translate all the English subtitles to {target_language}
 
 4. Your response only contains {target_language} translations of the subtitles.
 
@@ -147,34 +157,61 @@ Here is the English subtitles:
 
 {srt_en_content}
 """
-    # response = client.chat.completions.create(
-    #     model="gpt-4-1106-preview",
-    #     temperature=temperature,
-    #     max_tokens=4096,
-    #     messages=[
-    #         {
-    #             "role": "system",
-    #             "content": f"You are a helpful assistant designed to translate English subtitles to {target_language} subtitles."
-    #         },
-    #         {
-    #             "role": "user",
-    #             "content": prompt
-    #         }
-    #     ]
-    # )
-    # return response.choices[0].message.content.strip()
-    logging.info(prompt)
-    response = ollama.chat(model=os.getenv('LOCAL_LLM'), messages=[
-        {
-            "role": "system",
-            "content": f"You are a helpful assistant designed to translate English subtitles to {target_language} subtitles."
-        },
-        {
-            'role': 'user',
-            'content': prompt
-        }
-    ])
-    return response['message']['content']
+    if llm == 'openai':
+        ########################
+        # Openai               #
+        ########################
+
+        response = client.chat.completions.create(
+            model="gpt-4-1106-preview",
+            temperature=temperature,
+            max_tokens=4096,
+            messages=[
+                {
+                    "role": "system",
+                    "content": f"You are a helpful assistant designed to translate English subtitles to {target_language} subtitles."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+        )
+        return response.choices[0].message.content.strip()
+    elif llm == 'ollama':
+        ########################
+        # Local Ollama LLM     #
+        ########################
+        response = ollama.chat(model=os.getenv('LOCAL_LLM'), messages=[
+            {
+                "role": "system",
+                "content": f"You are a helpful assistant designed to translate English subtitles to {target_language} subtitles."
+            },
+            {
+                'role': 'user',
+                'content': prompt
+            }
+        ])
+        return response['message']['content']
+
+    elif llm == 'claude':
+        ########################
+        # Anthropics           #
+        ########################
+
+        response = client.messages.create(
+            max_tokens=4096,
+            system=f"You are a helpful assistant designed to translate English subtitles to {
+                target_language} subtitles.",
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            model="claude-3-sonnet-20240229",
+        )
+        return response.content[0].text
 
 
 def save_subtitle_file(translated_content, output_path, language=None):
@@ -254,6 +291,12 @@ def main():
         # Add more presets here as needed
     }
 
+    llms = [
+        'ollama',
+        'openai',
+        'claude'
+    ]
+
     # Preset trim ends mapped to keys
     trim_end_presets = {
         'ABC7': 17,
@@ -268,12 +311,14 @@ def main():
                         help="The path to the input video file.")
     parser.add_argument('--output_path', type=str, default='.',
                         help="The path to the output video files.")
-    parser.add_argument('--blur_area_key', type=str, choices=blur_area_presets.keys(),
+    parser.add_argument('--blur_area', type=str, choices=blur_area_presets.keys(),
                         help="Specify the key for a preset blur area. If not provided, no blur area is applied.")
     parser.add_argument('--trim_end', type=str, choices=trim_end_presets.keys(),
                         help='Specify the key for a preset trim end. If not provided, no trim end is applied.')
     parser.add_argument('--cn_only', type=bool, default=False,
                         help="Chinese subtitle only.")
+    parser.add_argument('--llm', type=str, choices=llms,
+                        default='ollama', help="Specify the language model to use. Default is ollama.")
 
     args = parser.parse_args()
 
@@ -310,7 +355,7 @@ def main():
         print("Step 4: Translating subtitles...\n")
         step_start_time = time.time()
         translated_srt = translate_subtitle(
-            formatted_srt, "Chinese", context=prompt)
+            formatted_srt, "Chinese", context=prompt, llm=args.llm)
         save_subtitle_file(
             translated_srt, translated_srt_path, language="Chinese")
         print(f"Completed in {time.time() - step_start_time:.2f} seconds.")
@@ -318,15 +363,16 @@ def main():
         if args.cn_only == False:
             print("Step 4a: Combine two subtitles into one. \n")
             combined_sub = translated_srt + '\n\n' + formatted_srt
-            combined_sub_path = os.path.join(video_dir, f"{video_basename}.srt")
+            combined_sub_path = os.path.join(
+                video_dir, f"{video_basename}.srt")
             save_subtitle_file(combined_sub, combined_sub_path)
             translated_srt_path = combined_sub_path
 
         print("Step 5: Processing video...\n")
         step_start_time = time.time()
         blur_area = None
-        if args.blur_area_key in blur_area_presets:
-            blur_area = blur_area_presets[args.blur_area_key]
+        if args.blur_area in blur_area_presets:
+            blur_area = blur_area_presets[args.blur_area]
         process_input_video(
             input_video, translated_srt_path, blur_area=blur_area)
         print(f"Completed in {time.time() - step_start_time:.2f} seconds.")
