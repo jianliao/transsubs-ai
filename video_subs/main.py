@@ -131,31 +131,65 @@ def extract_and_transcribe_audio(input_video_path, prompt=None):
 
 
 def translate_subtitle(srt_en_content, target_language, temperature=0.2, context=None, llm='ollama'):
-    prompt = f"""
-Translate the English subtitles provided input below into {target_language} while following the given guidelines:
+    system_prompt = f"""
+Translate the English subtitle into a {target_language} subtitle while maintaining the SRT format. Ensure that specified elements remain in their original English form.
 
-1. Ensure the following elements remain in their original English form:
-    - Proper names (people, places, organizations)
-    - Brand names and trademarks
-    - Specific technical terms
-    - Acronyms and abbreviations
-    - Cultural references, idioms, and sayings
-    - Titles of works (books, movies, songs)
-    - Units of measurement
-    - Email addresses and URLs
-    - Direct quotes
-    - Certain legal terms
-    - Location names (cities, states, countries, etc.)
+- **Elements to Maintain in English**:
+  - Proper names (people, places, organizations)
+  - Brand names and trademarks
+  - Specific technical terms
+  - Acronyms and abbreviations
+  - Cultural references, idioms, and sayings
+  - Titles of works (books, movies, songs)
+  - Units of measurement
+  - Email addresses and URLs
+  - Direct quotes
+  - Certain legal terms
+  - Location names (cities, states, countries, etc.)
 
-2. Pay attention to maintaining the original structure of the SRT format, including timestamps. Focus solely on correcting, modifying, and translating the subtitles. The timing and sequence of each subtitle entry should remain unchanged.
+# Steps
 
-3. Translate all the English subtitles to {target_language}
+1. Carefully read the English subtitle content for context.
+2. Translate the main content into {target_language}, ensuring fluency and accuracy.
+3. Identify and preserve the specified elements in their original English form.
+4. Maintain the SRT timing and numbering structure exactly.
 
-4. Your response only contains {target_language} translations of the subtitles.
+# Output Format
 
-Here is the English subtitles:
+- Provide the translated subtitle in SRT format.
 
-{srt_en_content}
+# Examples
+
+**Example SRT Input:**
+```
+1
+00:00:01,000 --> 00:00:04,000
+Hello, my name is John Smith. I work at Microsoft.
+
+2
+00:00:05,000 --> 00:00:08,000
+Visit www.example.com for more info.
+```
+
+**Translated SRT Output:**
+```
+1
+00:00:01,000 --> 00:00:04,000
+你好，我的名字是John Smith。我在Microsoft工作。
+
+2
+00:00:05,000 --> 00:00:08,000
+请访问www.example.com获取更多信息。
+```
+
+(Actual examples should follow the correct timing and formatting, longer examples will naturally align with full subtitle scripts)
+
+# Notes
+
+- Ensure each translated subtitle is meaningful and contextually appropriate.
+- Review for any cultural nuances that may affect translation.
+- Double-check the consistency of kept English elements across the subtitle file.
+- Maintain the original timing and numbering structure of the English subtitles.
 """
     if llm == 'openai':
         ########################
@@ -169,11 +203,11 @@ Here is the English subtitles:
             messages=[
                 {
                     "role": "system",
-                    "content": f"You are a helpful assistant designed to translate English subtitles to {target_language} subtitles."
+                    "content": system_prompt
                 },
                 {
                     "role": "user",
-                    "content": prompt
+                    "content": srt_en_content
                 }
             ]
         )
@@ -185,11 +219,11 @@ Here is the English subtitles:
         response = ollama.chat(model=os.getenv('LOCAL_LLM'), messages=[
             {
                 "role": "system",
-                "content": f"You are a helpful assistant designed to translate English subtitles to {target_language} subtitles."
+                "content": system_prompt
             },
             {
                 'role': 'user',
-                'content': prompt
+                'content': srt_en_content
             }
         ])
         return response['message']['content']
@@ -201,12 +235,11 @@ Here is the English subtitles:
 
         response = client.messages.create(
             max_tokens=4096,
-            system=f"You are a helpful assistant designed to translate English subtitles to {
-                target_language} subtitles.",
+            system=system_prompt,
             messages=[
                 {
                     "role": "user",
-                    "content": prompt
+                    "content": srt_en_content
                 }
             ],
             model="claude-3-sonnet-20240229",
