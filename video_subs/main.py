@@ -5,7 +5,7 @@ import subprocess
 import re
 import os
 
-import ollama
+from ollama import Client
 from openai import OpenAI
 from anthropic import Anthropic
 
@@ -19,6 +19,7 @@ client = OpenAI()
 
 client_claude = client = Anthropic()
 
+client_ollama = Client(host=os.getenv('OLLAMA_HOST'))
 
 current_directory = os.getcwd()
 log_file_path = os.path.join(current_directory, 'app.log')
@@ -113,8 +114,7 @@ def extract_and_transcribe_audio(input_video_path, prompt=None):
         whisper_cpp_home, 'models', 'ggml-large-v3.bin')
 
     # Construct the base command
-    command = f"ffmpeg -nostdin -threads 0 -i {quote(input_video_path)} -f wav -ac 1 -acodec pcm_s16le -ar 16000 - | {quote(whisper_cpp_executable)} -m {
-        quote(whisper_cpp_model)} {('--prompt ' + quote(prompt)) if prompt else ''} --output-srt --logprob-thold 3 -f -"
+    command = f"ffmpeg -nostdin -threads 0 -i {quote(input_video_path)} -f wav -ac 1 -acodec pcm_s16le -ar 16000 - | {quote(whisper_cpp_executable)} -m {quote(whisper_cpp_model)} {('--prompt ' + quote(prompt)) if prompt else ''} --output-srt --logprob-thold 3 -f -"
 
     print(command)
 
@@ -216,7 +216,7 @@ Visit www.example.com for more info.
         ########################
         # Local Ollama LLM     #
         ########################
-        response = ollama.chat(model=os.getenv('LOCAL_LLM'), messages=[
+        response = client_ollama.chat(model=os.getenv('LOCAL_LLM'), messages=[
             {
                 "role": "system",
                 "content": system_prompt
@@ -300,7 +300,7 @@ def generate_video_metadata(translated_content, language):
     #     max_tokens=4096  # Adjust based on how long you expect the title and description to be
     # )
 
-    response = ollama.chat(model=os.getenv('LOCAL_LLM'), messages=[
+    response = client_ollama.chat(model=os.getenv('LOCAL_LLM'), messages=[
         {
             'role': 'user',
             'content': prompt
@@ -321,6 +321,7 @@ def main():
     # Preset blur areas mapped to keys
     blur_area_presets = {
         'kron4': [185, 182, 105, 105],
+        'abc7': [190, 190, 160, 155],
         # Add more presets here as needed
     }
 
@@ -332,9 +333,9 @@ def main():
 
     # Preset trim ends mapped to keys
     trim_end_presets = {
-        'ABC7': 17,
-        'INSIDE': 8,
-        'NBC': 10,
+        'abc7': 17,
+        'inside': 8,
+        'nbc': 10,
         # Add more presets here as needed
     }
 
