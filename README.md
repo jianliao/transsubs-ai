@@ -2,6 +2,7 @@
 
 ## Introduction
 Welcome to TransSubs-AI, a powerful and intuitive tool designed to transform the way we work with video subtitles. This repository holds a Python application capable of extracting audio from video files, transcribing it, translating the subtitles into various languages, and generating a title and description for the video in the translated language. It's a perfect blend of technology and convenience for content creators, translators, and anyone working with multilingual video content.
+<img width="2487" alt="AI Assistant Workflow" src="https://github.com/user-attachments/assets/68c34238-8fb7-41db-92bf-8e33001dd191">
 
 ## Technologies
 TransSubs-AI leverages several cutting-edge technologies and tools:
