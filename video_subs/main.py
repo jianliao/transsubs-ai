@@ -161,7 +161,6 @@ Translate the English subtitle into a {target_language} subtitle while maintaini
 # Examples
 
 **Example SRT Input:**
-```
 1
 00:00:01,000 --> 00:00:04,000
 Hello, my name is John Smith. I work at Microsoft.
@@ -169,10 +168,8 @@ Hello, my name is John Smith. I work at Microsoft.
 2
 00:00:05,000 --> 00:00:08,000
 Visit www.example.com for more info.
-```
 
 **Translated SRT Output:**
-```
 1
 00:00:01,000 --> 00:00:04,000
 你好，我的名字是John Smith。我在Microsoft工作。
@@ -180,7 +177,6 @@ Visit www.example.com for more info.
 2
 00:00:05,000 --> 00:00:08,000
 请访问www.example.com获取更多信息。
-```
 
 (Actual examples should follow the correct timing and formatting, longer examples will naturally align with full subtitle scripts)
 
