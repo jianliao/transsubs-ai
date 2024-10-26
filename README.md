@@ -22,12 +22,30 @@ To use TransSubs-AI, follow these steps:
      pip install -r requirements.txt
      ```
    - Rename `example.env` to `.env` and fill in the missing information
+   - pip install .
 2. **Running the Application**:
    - Use the command line interface (CLI) to easily process your videos. Here's an example command to get you started:
      ```
-     python Main.py ~/Downloads/RPReplay_Final1702137844.MP4
+     > video_subs -h
+      usage: video_subs [-h] [--output_path OUTPUT_PATH] [--blur_area {kron4,abc7}] [--trim_end {abc7,inside,nbc}] [--cn_only CN_ONLY] [--llm {ollama,openai,claude}] video_url
+      
+      Process a video file to generate translated subtitles.
+      
+      positional arguments:
+        video_url             The path to the input video file.
+      
+      options:
+        -h, --help            show this help message and exit
+        --output_path OUTPUT_PATH
+                              The path to the output video files.
+        --blur_area {kron4,abc7}
+                              Specify the key for a preset blur area. If not provided, no blur area is applied.
+        --trim_end {abc7,inside,nbc}
+                              Specify the key for a preset trim end. If not provided, no trim end is applied.
+        --cn_only CN_ONLY     Chinese subtitle only.
+        --llm {ollama,openai,claude}
+                              Specify the language model to use. Default is ollama.
      ```
-   - Replace the file path with the path to your own video file.
 
 We hope TransSubs-AI makes your work with subtitles more efficient and enjoyable. Feel free to contribute to this project by submitting pull requests or reporting issues.
 
